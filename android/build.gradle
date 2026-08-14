@@ -22,7 +22,7 @@ subprojects {
                 if (namespace == null) {
                     namespace = project.group
                 }
-                compileSdkVersion 35
+                compileSdkVersion 36
                 defaultConfig {
                     if (targetSdkVersion == null) {
                         targetSdkVersion 35
