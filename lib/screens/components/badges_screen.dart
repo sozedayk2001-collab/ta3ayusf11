@@ -63,7 +63,7 @@ class BadgesScreen extends StatelessWidget {
                               decoration: BoxDecoration(
                                   color: primary.withOpacity(.12),
                                   shape: BoxShape.circle),
-                              child: const Icon(Icons.workspace_premium_rounded,
+                              child: Icon(Icons.workspace_premium_rounded,
                                   color: primary, size: 28)),
                           const SizedBox(width: 12),
                           Expanded(
@@ -99,7 +99,7 @@ class BadgesScreen extends StatelessWidget {
                                   minHeight: 8,
                                   backgroundColor: primary.withOpacity(.12),
                                   valueColor:
-                                      const AlwaysStoppedAnimation(primary))),
+                                      AlwaysStoppedAnimation(primary))),
                           const SizedBox(height: 6),
                           Text(
                               '${next.daysRequired - userDays} ${_remainingLabel(lang)}',

@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:translator/translator.dart';
 
 class Quote {
   final String id;
@@ -60,7 +60,6 @@ class Quote {
 class QuotesService extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleTranslator _translator = GoogleTranslator();
   
   // Developer email - the only one who can manage content
   static const String developerEmail = 'yusfkarim2001@gmail.com';
@@ -82,12 +81,33 @@ class QuotesService extends ChangeNotifier {
   Future<String> translateToEnglish(String arabicText) async {
     if (arabicText.isEmpty) return '';
     try {
-      final translation = await _translator.translate(arabicText, from: 'ar', to: 'en');
-      return translation.text;
+      final translated = await _translateArToEn(arabicText);
+      return translated;
     } catch (e) {
       debugPrint('Translation error: $e');
       return ''; // Return empty if translation fails
     }
+  }
+
+  /// Translate Arabic to English using Google's keyless "gtx" endpoint.
+  /// Returns the original text if the translation service is unreachable.
+  static Future<String> _translateArToEn(String text) async {
+    final uri = Uri.https('translate.googleapis.com', '/translate_a/single', {
+      'client': 'gtx',
+      'sl': 'ar',
+      'tl': 'en',
+      'dt': 't',
+      'q': text,
+    });
+    final res = await http.get(uri);
+    if (res.statusCode != 200) return text;
+    final decoded = jsonDecode(res.body);
+    final segments = decoded[0] as List;
+    final buffer = StringBuffer();
+    for (final seg in segments) {
+      buffer.write(seg[0]);
+    }
+    return buffer.toString();
   }
 
   Future<void> loadQuotes() async {

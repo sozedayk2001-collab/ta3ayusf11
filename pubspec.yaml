@@ -2,7 +2,7 @@ name: recovery_app
 description: "التعافي من الٳدمان - Recovery from Addiction App"
 publish_to: 'none'
 
-version: 4.1.11+76
+version: 4.1.11+79
 
 environment:
   sdk: ^3.5.4

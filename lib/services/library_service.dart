@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:translator/translator.dart';
 import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -389,6 +388,27 @@ class LibraryService extends ChangeNotifier {
     return _books.where((b) => b.categoryId == categoryId).toList();
   }
 
+  /// Translate Arabic to English using Google's keyless "gtx" endpoint.
+  /// Returns the original text if the translation service is unreachable.
+  static Future<String> _translateArToEn(String text) async {
+    final uri = Uri.https('translate.googleapis.com', '/translate_a/single', {
+      'client': 'gtx',
+      'sl': 'ar',
+      'tl': 'en',
+      'dt': 't',
+      'q': text,
+    });
+    final res = await http.get(uri);
+    if (res.statusCode != 200) return text;
+    final decoded = jsonDecode(res.body);
+    final segments = decoded[0] as List;
+    final buffer = StringBuffer();
+    for (final seg in segments) {
+      buffer.write(seg[0]);
+    }
+    return buffer.toString();
+  }
+
   // Admin functions - no admin check since content_management_screen is already for developers
   Future<bool> addCategory(String nameAr, String nameKu, String nameEn) async {
     try {
@@ -396,9 +416,7 @@ class LibraryService extends ChangeNotifier {
       String finalNameEn = nameEn;
       if (nameEn.isEmpty && nameAr.isNotEmpty) {
         try {
-          final translator = GoogleTranslator();
-          final translation = await translator.translate(nameAr, from: 'ar', to: 'en');
-          finalNameEn = translation.text;
+          finalNameEn = await _translateArToEn(nameAr);
         } catch (e) {
           finalNameEn = nameAr; // Fallback
         }

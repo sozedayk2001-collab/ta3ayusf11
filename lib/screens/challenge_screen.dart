@@ -56,12 +56,14 @@ class _ChallengeScreenState extends State<ChallengeScreen> with TickerProviderSt
     });
   }
 
-  void _checkDayChange() {
+  Future<void> _checkDayChange() async {
     if (!mounted || !_challengeService.isActive) return;
     final newDay = _challengeService.realDay;
     if (newDay != _lastCheckedDay) {
       _lastCheckedDay = newDay;
-      _challengeService.clearTaskCache();
+      // Generate/align today's task set exactly once (idempotent + race-safe).
+      await _challengeService.ensureTasksForToday();
+      if (!mounted) return;
       setState(() {});
       final newStage = _challengeService.checkNewStageCelebration();
       if (newStage != null) {

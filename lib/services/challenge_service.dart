@@ -217,6 +217,8 @@ class ChallengeService extends ChangeNotifier {
   int _taskSwapsToday = 0; // Task swaps used today
   int _lastSwapDay = 0; // Day when swap counter was reset
   Set<int> _celebratedStages = {}; // Stages already celebrated
+  String? _taskSetDate; // Local calendar date (yyyy-MM-dd) of the current task set
+  bool _isGeneratingTasks = false; // Re-entrancy guard for task generation
 
   DateTime? get startDate => _startDate;
   int get totalXP => _totalXP;
@@ -295,18 +297,57 @@ class ChallengeService extends ChangeNotifier {
     _cachedDay = -1;
   }
 
-  /// The actual elapsed recovery days based on full 24-hour periods
+  /// Local calendar date key (yyyy-MM-dd) for a given date-time.
+  /// Used to detect whether the current task set belongs to today or a past day.
+  static String _dateKey(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
+
+  /// Ensures the task set for the current local calendar day exists exactly once.
+  ///
+  /// Idempotent: if the task set for today already exists it does nothing.
+  /// Protected against race conditions (opening the screen quickly multiple
+  /// times, or the day watcher firing several times) via [_isGeneratingTasks].
+  ///
+  /// Returns `true` if a new day's tasks were generated.
+  Future<bool> ensureTasksForToday() async {
+    if (!_isActive || _startDate == null) return false;
+    if (_isGeneratingTasks) return false; // Re-entrancy guard
+
+    final today = _dateKey(DateTime.now());
+    if (_taskSetDate == today) return false; // Already generated for today
+
+    _isGeneratingTasks = true;
+    try {
+      _taskSetDate = today;
+      clearTaskCache();
+      await _saveData();
+      notifyListeners();
+      return true;
+    } finally {
+      _isGeneratingTasks = false;
+    }
+  }
+
+  /// The actual elapsed recovery days based on local calendar days.
+  ///
+  /// Day 0 = the calendar day the challenge started. The day advances at local
+  /// midnight (the start of a new calendar day), not after a fixed number of
+  /// hours. This makes daily tasks regenerate at the correct day boundary.
   int get realDay {
     if (_startDate == null) return 0;
 
-    // Count only fully completed 24-hour periods.
-    // Example: 20 hours = 0 days, 24 hours = 1 day.
-    final elapsed = DateTime.now().difference(_startDate!);
-    return elapsed.inHours ~/ 24;
+    final now = DateTime.now();
+    final start = _startDate!;
+    final today = DateTime(now.year, now.month, now.day);
+    final startDay = DateTime(start.year, start.month, start.day);
+    return today.difference(startDay).inDays;
   }
 
   /// The effective challenge day.
-  /// Day 1 starts immediately, then advances every full 24 hours.
+  /// Day 1 starts on the calendar day the challenge began, then advances at
+  /// each local midnight.
   int get currentDay {
     if (_startDate == null) return 0;
 
@@ -566,6 +607,11 @@ class ChallengeService extends ChangeNotifier {
       final json = jsonDecode(data);
       _loadFromJson(json);
     }
+
+    // Align the task set with the current local day (handles new day,
+    // app reopen, and skipped days) - idempotent and race-safe.
+    await ensureTasksForToday();
+
     notifyListeners();
     
     // Sync from Firebase in background
@@ -586,6 +632,7 @@ class ChallengeService extends ChangeNotifier {
     _celebratedStages = Set<int>.from((json['celebratedStages'] ?? []).map((e) => e as int));
     _taskSwapsToday = json['taskSwapsToday'] ?? 0;
     _lastSwapDay = json['lastSwapDay'] ?? 0;
+    _taskSetDate = json['taskSetDate'];
   }
 
   /// Sync challenge data FROM Firebase (for new device / reinstall)
@@ -645,6 +692,7 @@ class ChallengeService extends ChangeNotifier {
       'celebratedStages': _celebratedStages.toList(),
       'taskSwapsToday': _taskSwapsToday,
       'lastSwapDay': _lastSwapDay,
+      'taskSetDate': _taskSetDate,
     };
   }
 
@@ -688,6 +736,7 @@ class ChallengeService extends ChangeNotifier {
     _isCompleted = false;
     _cachedDailyTasks = null;
     _cachedDay = -1;
+    _taskSetDate = _dateKey(DateTime.now());
     await _saveData();
     notifyListeners();
   }
@@ -785,6 +834,7 @@ class ChallengeService extends ChangeNotifier {
     _isCompleted = false;
     _cachedDailyTasks = null;
     _cachedDay = -1;
+    _taskSetDate = null;
     await _saveData();
     notifyListeners();
   }

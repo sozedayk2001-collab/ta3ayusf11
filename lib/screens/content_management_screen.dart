@@ -1428,8 +1428,6 @@ class _LibraryManagementTabState extends State<_LibraryManagementTab> {
     final downloadUrlController = TextEditingController();
     String? selectedCategoryId;
     bool isAdding = false;
-    bool isUploadingPdf = false;
-    bool isUploadingCover = false;
     
     // File upload state
     Uint8List? pdfBytes;
@@ -1634,10 +1632,7 @@ class _LibraryManagementTabState extends State<_LibraryManagementTab> {
                               ],
                             ),
                           ),
-                          if (isUploadingPdf)
-                            const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
-                          else
-                            TextButton(
+                          TextButton(
                               onPressed: () async {
                                 final result = await FilePicker.platform.pickFiles(
                                   type: FileType.custom,
@@ -1711,10 +1706,7 @@ class _LibraryManagementTabState extends State<_LibraryManagementTab> {
                               ],
                             ),
                           ),
-                          if (isUploadingCover)
-                            const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
-                          else
-                            TextButton(
+                          TextButton(
                               onPressed: () async {
                                 final result = await FilePicker.platform.pickFiles(
                                   type: FileType.image,
