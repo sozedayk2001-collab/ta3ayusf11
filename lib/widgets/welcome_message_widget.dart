@@ -1,8 +1,18 @@
-import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../services/language_service.dart';
+
+/// Official support link — used everywhere.
+const String kSupportUrl = 'https://creators.sa/yousifkareem';
+
+/// Opens the support page in the device's EXTERNAL browser.
+Future<void> openSupportExternal() async {
+  final uri = Uri.parse(kSupportUrl);
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+}
 
 class WelcomeMessageWidget extends StatefulWidget {
   final Widget child;
@@ -19,61 +29,31 @@ class _WelcomeMessageWidgetState extends State<WelcomeMessageWidget>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
-  Timer? _hideTimer;
-  int _currentMessageIndex = 0;
-
-  final List<Map<String, String>> _messages = [
-    {'title': 'تطبيق ختمة', 'subtitle': 'رفيقك الإيماني', 'body': 'قرآن كريم بأصوات ٢٤٠ قارئ\nمواقيت الصلاة والأذكار اليومية\nأحاديث نبوية وتفسير القرآن'},
-    {'title': 'ختمة', 'subtitle': 'القرآن الكريم', 'body': 'استمع وتلاوة بأجمل الأصوات\nالسديس والشريم والمنشاوي\nتفسير ابن كثير والسعدي'},
-    {'title': 'ختمة', 'subtitle': 'أذكار وأدعية', 'body': 'أذكار الصباح والمساء\nأدعية من القرآن والسنة\nتنبيهات ذكية لتذكيرك'},
-    {'title': 'ختمة', 'subtitle': 'مواقيت الصلاة', 'body': 'مواقيت دقيقة لموقعك\nأذان تلقائي وتنبيهات\nاتجاه القبلة بدقة عالية'},
-    {'title': 'تطبيق ختمة', 'subtitle': 'شامل ومجاني', 'body': 'كل ما يحتاجه المسلم\nفي تطبيق واحد مجاني\nبدون إعلانات مزعجة'},
-    {'title': 'ختمة', 'subtitle': 'تابع ختمتك', 'body': 'متابعة تقدمك في القراءة\nإحصائيات وتذكيرات يومية\nحمّله الآن واختم القرآن'},
-    {'title': 'ختمة', 'subtitle': 'أحاديث نبوية', 'body': 'أحاديث صحيحة يومية\nمع الشرح والتخريج\nمن صحيح البخاري ومسلم'},
-    {'title': 'ختمة', 'subtitle': 'عدّاد التسبيح', 'body': 'سبّح واذكر الله بسهولة\nعدّاد ذكي مع الإحصائيات\nأهداف يومية للتسبيح'},
-  ];
+  late AnimationController _heartController;
 
   @override
   void initState() {
     super.initState();
-    _loadMessageIndex();
-    
+
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
     );
-    
+
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
-    
+
     _scaleAnimation = Tween<double>(begin: 0.85, end: 1.0).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.elasticOut),
     );
-    
-    _animationController.forward();
-    
-    _hideTimer = Timer(const Duration(seconds: 15), () {
-      _hideMessage();
-    });
-  }
 
-  Future<void> _loadMessageIndex() async {
-    final prefs = await SharedPreferences.getInstance();
-    int lastIndex = prefs.getInt('welcome_message_index') ?? -1;
-    
-    int newIndex;
-    do {
-      newIndex = Random().nextInt(_messages.length);
-    } while (newIndex == lastIndex && _messages.length > 1);
-    
-    await prefs.setInt('welcome_message_index', newIndex);
-    
-    if (mounted) {
-      setState(() {
-        _currentMessageIndex = newIndex;
-      });
-    }
+    _heartController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
+
+    _animationController.forward();
   }
 
   Future<void> _hideMessage() async {
@@ -87,8 +67,8 @@ class _WelcomeMessageWidgetState extends State<WelcomeMessageWidget>
 
   @override
   void dispose() {
-    _hideTimer?.cancel();
     _animationController.dispose();
+    _heartController.dispose();
     super.dispose();
   }
 
@@ -109,11 +89,18 @@ class _WelcomeMessageWidgetState extends State<WelcomeMessageWidget>
                     return Opacity(
                       opacity: _fadeAnimation.value,
                       child: Container(
-                        color: Colors.black.withOpacity(0.75 * _fadeAnimation.value),
+                        color: Colors.black.withOpacity(
+                          0.75 * _fadeAnimation.value,
+                        ),
                         child: Center(
                           child: Transform.scale(
                             scale: _scaleAnimation.value,
-                            child: _buildMessageCard(),
+                            // Card tap opens the support page externally;
+                            // tapping the dimmed background dismisses it.
+                            child: GestureDetector(
+                              onTap: openSupportExternal,
+                              child: _buildSupportCard(context),
+                            ),
                           ),
                         ),
                       ),
@@ -127,42 +114,123 @@ class _WelcomeMessageWidgetState extends State<WelcomeMessageWidget>
     );
   }
 
-  Widget _buildMessageCard() {
-    final message = _messages[_currentMessageIndex];
-    
+  Widget _buildSupportCard(BuildContext context) {
+    final lang = Provider.of<LanguageService>(context, listen: false);
+
+    final title = switch (lang.currentLanguage) {
+      AppLanguage.kurdish => 'پشتیوانی بەردەوامیی ئەپ بکە',
+      AppLanguage.arabic => 'ادعم استمرار التطبيق',
+      AppLanguage.english => 'Support the app',
+    };
+
+    final headline = switch (lang.currentLanguage) {
+      AppLanguage.kurdish =>
+          'یارمەتیمان بدە ئەپەکانمان بە خۆڕایی و بەردەوام بمێننەوە بۆ هەمووان',
+      AppLanguage.arabic => 'ساهم في إبقاء تطبيقاتنا مجانية ومستمرّة للجميع',
+      AppLanguage.english => 'Help keep our apps free and available for everyone',
+    };
+
+    final description = switch (lang.currentLanguage) {
+      AppLanguage.kurdish =>
+          'ئەم ئەپە بە تەواوی خۆڕاییە، و پشتیوانی تۆ یارمەتیمان دەدات بەردەوام بین لە پەرەپێدان و باشترکردنی و زیادکردنی تایبەتمەندیی نوێ بۆ خزمەتکردنی هەمووان.',
+      AppLanguage.arabic =>
+          'هذا التطبيق مجاني بالكامل، ودعمك يساعدنا على الاستمرار في تطويره وتحسينه وإضافة ميزات جديدة تخدم الجميع.',
+      AppLanguage.english =>
+          'This app is completely free, and your support helps us keep developing it, improving it and adding new features for everyone.',
+    };
+
+    final buttonLabel = switch (lang.currentLanguage) {
+      AppLanguage.kurdish => 'ساهم في استمرار التطبيق',
+      AppLanguage.arabic => 'ساهم في استمرار التطبيق',
+      AppLanguage.english => 'Keep the app going',
+    };
+
+    final closeLabel = switch (lang.currentLanguage) {
+      AppLanguage.kurdish => 'داخستن',
+      AppLanguage.arabic => 'إغلاق',
+      AppLanguage.english => 'Close',
+    };
+
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 28),
+      margin: const EdgeInsets.symmetric(horizontal: 26),
+      constraints: BoxConstraints(
+        maxWidth: 420,
+        maxHeight: MediaQuery.of(context).size.height * 0.85,
+      ),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(36),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0D4F2B).withOpacity(0.6),
-            blurRadius: 40,
-            spreadRadius: 5,
+            color: const Color(0xFF0D4F2B).withOpacity(0.65),
+            blurRadius: 48,
+            spreadRadius: 6,
+          ),
+          BoxShadow(
+            color: const Color(0xFF14B8A6).withOpacity(0.25),
+            blurRadius: 60,
+            spreadRadius: 2,
+            offset: const Offset(0, 18),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(36),
         child: Stack(
           children: [
-            // Background Image
+            // Background — rich layered gradient
             Positioned.fill(
-              child: Image.asset(
-                'assets/images/khatmah_bg.png',
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Color(0xFF0D4F2B), Color(0xFF062A17), Color(0xFF041C0F)],
-                    ),
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0xFF0E5A31),
+                      Color(0xFF0A4524),
+                      Color(0xFF072E18),
+                      Color(0xFF041C0F),
+                    ],
                   ),
                 ),
               ),
             ),
-            // Dark overlay for readability
+            // Decorative glowing orb (top)
+            Positioned(
+              top: -70,
+              right: -50,
+              child: Container(
+                width: 200,
+                height: 200,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      const Color(0xFF14B8A6).withOpacity(0.28),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // Decorative glowing orb (bottom)
+            Positioned(
+              bottom: -80,
+              left: -60,
+              child: Container(
+                width: 220,
+                height: 220,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      const Color(0xFF2DD4BF).withOpacity(0.18),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // Soft glass highlight
             Positioned.fill(
               child: Container(
                 decoration: BoxDecoration(
@@ -170,273 +238,290 @@ class _WelcomeMessageWidgetState extends State<WelcomeMessageWidget>
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Colors.black.withOpacity(0.3),
-                      Colors.black.withOpacity(0.5),
-                      Colors.black.withOpacity(0.7),
+                      Colors.white.withOpacity(0.07),
+                      Colors.black.withOpacity(0.12),
+                      Colors.black.withOpacity(0.45),
                     ],
                   ),
                 ),
               ),
             ),
             // Content
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+            SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(26, 60, 26, 26),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Top decorative dots
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildDot(6),
-                      const SizedBox(width: 6),
-                      _buildDot(4),
-                      const SizedBox(width: 6),
-                      _buildDot(8),
-                      const SizedBox(width: 6),
-                      _buildDot(4),
-                      const SizedBox(width: 6),
-                      _buildDot(6),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Khatmah Logo
-                  Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(26),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.25),
-                        width: 2.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF1B5E20).withOpacity(0.5),
-                          blurRadius: 25,
-                          spreadRadius: 3,
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(24),
-                      child: Image.asset(
-                        'assets/images/khatmah_logo.jpg',
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          decoration: const BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [Color(0xFF1B5E20), Color(0xFF4CAF50)],
+                  // Heart icon badge — animated pulse
+                  AnimatedBuilder(
+                    animation: _heartController,
+                    builder: (context, _) {
+                      final glowOpacity = 0.30 + 0.25 * _heartController.value;
+                      final scale = 1.0 + 0.05 * _heartController.value;
+                      return Transform.scale(
+                        scale: scale,
+                        child: Container(
+                          width: 84,
+                          height: 84,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(26),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.3),
+                              width: 2.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF14B8A6)
+                                    .withOpacity(glowOpacity),
+                                blurRadius: 34,
+                                spreadRadius: 4,
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(23),
+                            child: Container(
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [Color(0xFF0D9488), Color(0xFF14B8A6)],
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.favorite_rounded,
+                                color: Colors.white,
+                                size: 44,
+                              ),
                             ),
                           ),
-                          child: const Icon(Icons.menu_book_rounded, color: Colors.white, size: 50),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
-                  const SizedBox(height: 20),
-                  
-                  // App Title
+                  const SizedBox(height: 18),
+
+                  // Title
                   Text(
-                    message['title']!,
-                    style: const TextStyle(
-                      fontSize: 32, // Increased from 28
+                    title,
+                    style: lang.getTextStyle(
+                      fontSize: 28,
                       fontWeight: FontWeight.w900,
                       color: Colors.white,
-                      fontFamily: 'Cairo',
-                      letterSpacing: 1.2,
-                      decoration: TextDecoration.none, // Just to be safe
-                      shadows: [
-                        Shadow(color: Colors.black54, blurRadius: 8, offset: Offset(0, 3)),
+                      height: 1.25,
+                      shadows: const [
+                        Shadow(
+                          color: Colors.black54,
+                          blurRadius: 8,
+                          offset: Offset(0, 3),
+                        ),
                       ],
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 4),
-                  
-                  // Subtitle
+                  const SizedBox(height: 12),
+
+                  // Headline chip
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(20),
+                      gradient: LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [
+                          Colors.white.withOpacity(0.14),
+                          Colors.white.withOpacity(0.06),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.18),
+                      ),
                     ),
                     child: Text(
-                      message['subtitle']!,
-                      style: TextStyle(
-                        fontSize: 18, // Increased from 15
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white.withOpacity(0.95),
-                        fontFamily: 'Cairo',
-                        decoration: TextDecoration.none,
+                      headline,
+                      style: lang.getTextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        height: 1.5,
                       ),
                       textAlign: TextAlign.center,
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  
-                  // Body text
-                  Text(
-                    message['body']!,
-                    style: const TextStyle(
-                      fontSize: 18, // Increased from 15
-                      color: Colors.white,
-                      fontFamily: 'Cairo',
-                      height: 1.8,
-                      fontWeight: FontWeight.w500,
-                      decoration: TextDecoration.none,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
-                  
-                  // Stars + Free badge
+                  const SizedBox(height: 16),
+
+                  // Elegant divider
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      ...List.generate(5, (i) => const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 1),
-                        child: Icon(Icons.star_rounded, color: Color(0xFFFFD700), size: 24), // Increased from 20
-                      )),
-                      const SizedBox(width: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF4CAF50).withOpacity(0.3),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.5)),
+                      Expanded(
+                        child: Container(
+                          height: 1,
+                          color: Colors.white.withOpacity(0.12),
                         ),
-                        child: const Text(
-                          'مجاني',
-                          style: TextStyle(
-                            fontSize: 14, // Increased from 12
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF81C784),
-                            fontFamily: 'Cairo',
-                            decoration: TextDecoration.none,
-                          ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Icon(
+                          Icons.auto_awesome_rounded,
+                          color: Colors.white.withOpacity(0.4),
+                          size: 16,
+                        ),
+                      ),
+                      Expanded(
+                        child: Container(
+                          height: 1,
+                          color: Colors.white.withOpacity(0.12),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 24),
-                  
-                  // Download Button
+                  const SizedBox(height: 16),
+
+                  // Description
+                  Text(
+                    description,
+                    style: lang.getTextStyle(
+                      fontSize: 14,
+                      color: Colors.white.withOpacity(0.9),
+                      height: 1.85,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 22),
+
+                  // Support button — opens externally
                   GestureDetector(
-                    onTap: () async {
-                      final uri = Uri.parse('https://play.google.com/store/apps/details?id=com.khatmah.quran.yusf.app');
-                      if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri, mode: LaunchMode.externalApplication);
-                      }
-                    },
+                    onTap: openSupportExternal,
                     child: Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 18), // Increased from 16
+                      padding: const EdgeInsets.symmetric(vertical: 17),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                          colors: [Color(0xFF1B5E20), Color(0xFF2E7D32), Color(0xFF43A047)],
+                          colors: [
+                            Color(0xFF0D9488),
+                            Color(0xFF14B8A6),
+                            Color(0xFF2DD4BF),
+                          ],
                           begin: Alignment.centerLeft,
                           end: Alignment.centerRight,
                         ),
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.3),
+                          width: 1.2,
+                        ),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF1B5E20).withOpacity(0.5),
-                            blurRadius: 18,
-                            offset: const Offset(0, 6),
+                            color: const Color(0xFF0D9488).withOpacity(0.55),
+                            blurRadius: 22,
+                            offset: const Offset(0, 8),
                           ),
                         ],
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.download_rounded, color: Colors.white, size: 24),
-                          SizedBox(width: 10),
-                          Text(
-                            'حمّل التطبيق مجاناً',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20, // Increased from 18
-                              fontWeight: FontWeight.bold,
-                              fontFamily: 'Cairo',
-                              decoration: TextDecoration.none,
+                          const Icon(
+                            Icons.favorite_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                          const SizedBox(width: 10),
+                          Flexible(
+                            child: Text(
+                              buttonLabel,
+                              style: lang.getTextStyle(
+                                color: Colors.white,
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
+                          ),
+                          const SizedBox(width: 10),
+                          const Icon(
+                            Icons.open_in_new_rounded,
+                            color: Colors.white,
+                            size: 19,
                           ),
                         ],
                       ),
                     ),
                   ),
-                  
-                  const SizedBox(height: 16),
-                  
+
+                  const SizedBox(height: 12),
+
                   // Close button
                   GestureDetector(
                     onTap: _hideMessage,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 22,
+                        vertical: 9,
+                      ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.08),
+                        color: Colors.white.withOpacity(0.07),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.white.withOpacity(0.15)),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.14),
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.close_rounded, color: Colors.white.withOpacity(0.7), size: 18),
-                          const SizedBox(width: 8),
+                          Icon(
+                            Icons.close_rounded,
+                            color: Colors.white.withOpacity(0.65),
+                            size: 16,
+                          ),
+                          const SizedBox(width: 6),
                           Text(
-                            'إغلاق',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.7),
-                              fontSize: 15, // Increased from 13
-                              fontFamily: 'Cairo',
-                              decoration: TextDecoration.none,
+                            closeLabel,
+                            style: lang.getTextStyle(
+                              color: Colors.white.withOpacity(0.65),
+                              fontSize: 14,
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 12),
-                  // Progress bar
-                  SizedBox(
-                    width: 80,
-                    child: TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 1.0, end: 0.0),
-                      duration: const Duration(seconds: 15),
-                      builder: (context, value, child) {
-                        return ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: LinearProgressIndicator(
-                            value: value,
-                            minHeight: 3,
-                            backgroundColor: Colors.white.withOpacity(0.08),
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white.withOpacity(0.3),
-                            ),
-                          ),
-                        );
-                      },
                     ),
                   ),
                 ],
               ),
             ),
+            // Close button (top-right) — no auto-hide
+            Positioned(
+              top: 12,
+              right: 12,
+              child: GestureDetector(
+                onTap: _hideMessage,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.25),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.25),
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.close_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildDot(double size) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white.withOpacity(0.2),
       ),
     );
   }
