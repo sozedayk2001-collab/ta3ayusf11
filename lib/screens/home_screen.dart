@@ -5600,31 +5600,13 @@ class _IslamicCornerPainter extends CustomPainter {
 
 /// Elegant support button shown near the day counter.
 /// Opens the official support page in the device's external browser.
-class _SupportButton extends StatefulWidget {
+class _SupportButton extends StatelessWidget {
   final LanguageService lang;
 
   const _SupportButton({required this.lang});
 
   @override
-  State<_SupportButton> createState() => _SupportButtonState();
-}
-
-class _SupportButtonState extends State<_SupportButton>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _pulseController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1800),
-  )..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _pulseController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final lang = widget.lang;
     final isDark = lang.isDarkMode;
 
     final label = switch (lang.currentLanguage) {
@@ -5633,71 +5615,60 @@ class _SupportButtonState extends State<_SupportButton>
       AppLanguage.english => 'Keep the app going',
     };
 
+    // Static (no continuous animation) — light and cheap.
     return Align(
       alignment: AlignmentDirectional.centerStart,
-      child: AnimatedBuilder(
-        animation: _pulseController,
-        builder: (context, _) {
-          // Subtle glow pulse (0.28 → 0.5).
-          final glow = 0.28 + 0.22 * _pulseController.value;
-          final heartScale = 1.0 + 0.08 * _pulseController.value;
-          return GestureDetector(
-            onTap: openSupportExternal,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: AlignmentDirectional.centerStart,
-                  end: AlignmentDirectional.centerEnd,
-                  colors: isDark
-                      ? const [Color(0xFF14B8A6), Color(0xFF0D9488)]
-                      : const [Color(0xFF0D9488), Color(0xFF14B8A6)],
-                ),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.28),
-                  width: 1.2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF14B8A6).withOpacity(glow),
-                    blurRadius: 18,
-                    spreadRadius: 1,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Transform.scale(
-                    scale: heartScale,
-                    child: const Icon(
-                      Icons.favorite_rounded,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    label,
-                    style: lang.getTextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  const Icon(
-                    Icons.open_in_new_rounded,
-                    color: Colors.white,
-                    size: 15,
-                  ),
-                ],
-              ),
+      child: GestureDetector(
+        onTap: openSupportExternal,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: AlignmentDirectional.centerStart,
+              end: AlignmentDirectional.centerEnd,
+              colors: isDark
+                  ? const [Color(0xFF14B8A6), Color(0xFF0D9488)]
+                  : const [Color(0xFF0D9488), Color(0xFF14B8A6)],
             ),
-          );
-        },
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.28),
+              width: 1.2,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x3314B8A6),
+                blurRadius: 12,
+                offset: Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.favorite_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: lang.getTextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Icon(
+                Icons.open_in_new_rounded,
+                color: Colors.white,
+                size: 15,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

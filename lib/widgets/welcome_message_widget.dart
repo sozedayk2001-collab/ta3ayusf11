@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/language_service.dart';
 
 /// Official support link — used everywhere.
 const String kSupportUrl = 'https://creators.sa/yousifkareem';
+
+/// Max number of times the support card is shown automatically.
+const int kSupportCardMaxShows = 2;
 
 /// Opens the support page in the device's EXTERNAL browser.
 Future<void> openSupportExternal() async {
@@ -25,50 +29,66 @@ class WelcomeMessageWidget extends StatefulWidget {
 
 class _WelcomeMessageWidgetState extends State<WelcomeMessageWidget>
     with SingleTickerProviderStateMixin {
-  bool _showMessage = true;
+  static const String _showCountKey = 'support_card_show_count';
+
+  bool _showMessage = false;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
-  late AnimationController _heartController;
 
   @override
   void initState() {
     super.initState();
 
+    // One-shot entrance animation (short & light — no continuous animation).
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 400),
     );
 
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.85, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.elasticOut),
+    _scaleAnimation = Tween<double>(begin: 0.9, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
 
-    _heartController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat(reverse: true);
+    _decideWhetherToShow();
+  }
 
-    _animationController.forward();
+  /// Show the card only on the first [kSupportCardMaxShows] app opens.
+  /// The counter is persisted locally, so it survives app restarts.
+  Future<void> _decideWhetherToShow() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final count = prefs.getInt(_showCountKey) ?? 0;
+      if (count < kSupportCardMaxShows) {
+        await prefs.setInt(_showCountKey, count + 1);
+        if (mounted) {
+          setState(() => _showMessage = true);
+          _animationController.forward();
+        }
+      }
+    } catch (e) {
+      // If storage fails, fall back to showing once for this session.
+      if (mounted) {
+        setState(() => _showMessage = true);
+        _animationController.forward();
+      }
+    }
   }
 
   Future<void> _hideMessage() async {
     await _animationController.reverse();
     if (mounted) {
-      setState(() {
-        _showMessage = false;
-      });
+      setState(() => _showMessage = false);
     }
   }
 
   @override
   void dispose() {
     _animationController.dispose();
-    _heartController.dispose();
     super.dispose();
   }
 
@@ -90,7 +110,7 @@ class _WelcomeMessageWidgetState extends State<WelcomeMessageWidget>
                       opacity: _fadeAnimation.value,
                       child: Container(
                         color: Colors.black.withOpacity(
-                          0.75 * _fadeAnimation.value,
+                          0.7 * _fadeAnimation.value,
                         ),
                         child: Center(
                           child: Transform.scale(
@@ -158,26 +178,21 @@ class _WelcomeMessageWidgetState extends State<WelcomeMessageWidget>
         maxHeight: MediaQuery.of(context).size.height * 0.85,
       ),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(36),
-        boxShadow: [
+        borderRadius: BorderRadius.circular(32),
+        // Light, single shadow (no heavy blur/spread).
+        boxShadow: const [
           BoxShadow(
-            color: const Color(0xFF0D4F2B).withOpacity(0.65),
-            blurRadius: 48,
-            spreadRadius: 6,
-          ),
-          BoxShadow(
-            color: const Color(0xFF14B8A6).withOpacity(0.25),
-            blurRadius: 60,
-            spreadRadius: 2,
-            offset: const Offset(0, 18),
+            color: Color(0x33000000),
+            blurRadius: 24,
+            offset: Offset(0, 10),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(36),
+        borderRadius: BorderRadius.circular(32),
         child: Stack(
           children: [
-            // Background — rich layered gradient
+            // Background — static gradient (no animated orbs).
             Positioned.fill(
               child: Container(
                 decoration: const BoxDecoration(
@@ -188,59 +203,6 @@ class _WelcomeMessageWidgetState extends State<WelcomeMessageWidget>
                       Color(0xFF0E5A31),
                       Color(0xFF0A4524),
                       Color(0xFF072E18),
-                      Color(0xFF041C0F),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            // Decorative glowing orb (top)
-            Positioned(
-              top: -70,
-              right: -50,
-              child: Container(
-                width: 200,
-                height: 200,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      const Color(0xFF14B8A6).withOpacity(0.28),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            // Decorative glowing orb (bottom)
-            Positioned(
-              bottom: -80,
-              left: -60,
-              child: Container(
-                width: 220,
-                height: 220,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      const Color(0xFF2DD4BF).withOpacity(0.18),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            // Soft glass highlight
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.white.withOpacity(0.07),
-                      Colors.black.withOpacity(0.12),
-                      Colors.black.withOpacity(0.45),
                     ],
                   ),
                 ),
@@ -248,74 +210,56 @@ class _WelcomeMessageWidgetState extends State<WelcomeMessageWidget>
             ),
             // Content
             SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(26, 60, 26, 26),
+              padding: const EdgeInsets.fromLTRB(26, 56, 26, 24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Heart icon badge — animated pulse
-                  AnimatedBuilder(
-                    animation: _heartController,
-                    builder: (context, _) {
-                      final glowOpacity = 0.30 + 0.25 * _heartController.value;
-                      final scale = 1.0 + 0.05 * _heartController.value;
-                      return Transform.scale(
-                        scale: scale,
-                        child: Container(
-                          width: 84,
-                          height: 84,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(26),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.3),
-                              width: 2.5,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF14B8A6)
-                                    .withOpacity(glowOpacity),
-                                blurRadius: 34,
-                                spreadRadius: 4,
-                              ),
-                            ],
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(23),
-                            child: Container(
-                              decoration: const BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [Color(0xFF0D9488), Color(0xFF14B8A6)],
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.favorite_rounded,
-                                color: Colors.white,
-                                size: 44,
-                              ),
-                            ),
+                  // Static heart icon (no continuous animation).
+                  Container(
+                    width: 76,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.3),
+                        width: 2,
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x3314B8A6),
+                          blurRadius: 20,
+                          offset: Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFF0D9488), Color(0xFF14B8A6)],
                           ),
                         ),
-                      );
-                    },
+                        child: const Icon(
+                          Icons.favorite_rounded,
+                          color: Colors.white,
+                          size: 42,
+                        ),
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 16),
 
                   // Title
                   Text(
                     title,
                     style: lang.getTextStyle(
-                      fontSize: 28,
+                      fontSize: 26,
                       fontWeight: FontWeight.w900,
                       color: Colors.white,
                       height: 1.25,
-                      shadows: const [
-                        Shadow(
-                          color: Colors.black54,
-                          blurRadius: 8,
-                          offset: Offset(0, 3),
-                        ),
-                      ],
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -324,22 +268,12 @@ class _WelcomeMessageWidgetState extends State<WelcomeMessageWidget>
                   // Headline chip
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 10,
+                      horizontal: 18,
+                      vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                        colors: [
-                          Colors.white.withOpacity(0.14),
-                          Colors.white.withOpacity(0.06),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.18),
-                      ),
+                      color: Colors.white.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
                       headline,
@@ -352,34 +286,7 @@ class _WelcomeMessageWidgetState extends State<WelcomeMessageWidget>
                       textAlign: TextAlign.center,
                     ),
                   ),
-                  const SizedBox(height: 16),
-
-                  // Elegant divider
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          height: 1,
-                          color: Colors.white.withOpacity(0.12),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Icon(
-                          Icons.auto_awesome_rounded,
-                          color: Colors.white.withOpacity(0.4),
-                          size: 16,
-                        ),
-                      ),
-                      Expanded(
-                        child: Container(
-                          height: 1,
-                          color: Colors.white.withOpacity(0.12),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
 
                   // Description
                   Text(
@@ -387,19 +294,19 @@ class _WelcomeMessageWidgetState extends State<WelcomeMessageWidget>
                     style: lang.getTextStyle(
                       fontSize: 14,
                       color: Colors.white.withOpacity(0.9),
-                      height: 1.85,
+                      height: 1.8,
                       fontWeight: FontWeight.w500,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 20),
 
                   // Support button — opens externally
                   GestureDetector(
                     onTap: openSupportExternal,
                     child: Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 17),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
                           colors: [
@@ -410,16 +317,12 @@ class _WelcomeMessageWidgetState extends State<WelcomeMessageWidget>
                           begin: Alignment.centerLeft,
                           end: Alignment.centerRight,
                         ),
-                        borderRadius: BorderRadius.circular(22),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.3),
-                          width: 1.2,
-                        ),
-                        boxShadow: [
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: const [
                           BoxShadow(
-                            color: const Color(0xFF0D9488).withOpacity(0.55),
-                            blurRadius: 22,
-                            offset: const Offset(0, 8),
+                            color: Color(0x330D9488),
+                            blurRadius: 14,
+                            offset: Offset(0, 5),
                           ),
                         ],
                       ),
@@ -467,11 +370,8 @@ class _WelcomeMessageWidgetState extends State<WelcomeMessageWidget>
                         vertical: 9,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.07),
+                        color: Colors.white.withOpacity(0.08),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.14),
-                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -496,21 +396,18 @@ class _WelcomeMessageWidgetState extends State<WelcomeMessageWidget>
                 ],
               ),
             ),
-            // Close button (top-right) — no auto-hide
+            // Close button (top-right)
             Positioned(
               top: 12,
               right: 12,
               child: GestureDetector(
                 onTap: _hideMessage,
                 child: Container(
-                  width: 40,
-                  height: 40,
+                  width: 38,
+                  height: 38,
                   decoration: BoxDecoration(
                     color: Colors.black.withOpacity(0.25),
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.25),
-                    ),
                   ),
                   child: const Icon(
                     Icons.close_rounded,

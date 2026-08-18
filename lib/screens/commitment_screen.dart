@@ -19,6 +19,7 @@ class _CommitmentScreenState extends State<CommitmentScreen>
   late Animation<double> _fadeAnimation;
   bool _isLoading = true;
   bool _isWritingMode = false;
+  String? _editingLetterId;
   final TextEditingController _letterController = TextEditingController();
   bool _isAutoSaving = false;
   String _autoSaveStatus = '';
@@ -55,6 +56,33 @@ class _CommitmentScreenState extends State<CommitmentScreen>
     if (_isAutoSaving) return;
     _isAutoSaving = true;
 
+    // Editing an existing letter vs. adding a new one.
+    final editingId = _editingLetterId;
+    if (editingId != null) {
+      await _commitmentService.updateLetter(editingId, _letterController.text.trim());
+      if (mounted) {
+        setState(() {
+          _isWritingMode = false;
+          _editingLetterId = null;
+          _letterController.clear();
+          _isAutoSaving = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              lang.currentLanguage == AppLanguage.arabic
+                  ? 'تم تعديل رسالتك بنجاح!'
+                  : lang.currentLanguage == AppLanguage.kurdish
+                      ? 'نامەکەت نوێکرایەوە!'
+                      : 'Your letter was updated!',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+      return;
+    }
+
     final success = await _commitmentService.addLetter(
       _letterController.text.trim(),
       _getUserName(lang),
@@ -80,6 +108,81 @@ class _CommitmentScreenState extends State<CommitmentScreen>
       );
     } else {
       _isAutoSaving = false;
+    }
+  }
+
+  /// Start editing an existing letter.
+  void _startEdit(LanguageService lang, CommitmentLetter letter) {
+    setState(() {
+      _editingLetterId = letter.id;
+      _letterController.text = letter.content;
+      _isWritingMode = true;
+    });
+  }
+
+  /// Confirm and delete a letter (works offline).
+  Future<void> _confirmDeleteLetter(
+      LanguageService lang, CommitmentLetter letter) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          lang.currentLanguage == AppLanguage.arabic
+              ? 'حذف الوثيقة'
+              : lang.currentLanguage == AppLanguage.kurdish
+                  ? 'سڕینەوەی بەڵگەنامە'
+                  : 'Delete letter',
+        ),
+        content: Text(
+          lang.currentLanguage == AppLanguage.arabic
+              ? 'هل أنت متأكد من حذف هذه الوثيقة نهائياً؟'
+              : lang.currentLanguage == AppLanguage.kurdish
+                  ? 'دڵنیایت لە سڕینەوەی ئەم بەڵگەنامەیە بۆ هەمیشە؟'
+                  : 'Are you sure you want to permanently delete this letter?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              lang.currentLanguage == AppLanguage.arabic
+                  ? 'إلغاء'
+                  : lang.currentLanguage == AppLanguage.kurdish
+                      ? 'پاشگەزبوونەوە'
+                      : 'Cancel',
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              lang.currentLanguage == AppLanguage.arabic
+                  ? 'حذف'
+                  : lang.currentLanguage == AppLanguage.kurdish
+                      ? 'بیسڕەوە'
+                      : 'Delete',
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _commitmentService.deleteLetter(letter.id);
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              lang.currentLanguage == AppLanguage.arabic
+                  ? 'تم حذف الوثيقة!'
+                  : lang.currentLanguage == AppLanguage.kurdish
+                      ? 'بەڵگەنامەکە سڕایەوە!'
+                      : 'Letter deleted!',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -800,14 +903,23 @@ class _CommitmentScreenState extends State<CommitmentScreen>
                           Expanded(
                             child: GestureDetector(
                               onTap: () {
-                                // Auto-save before canceling if there's text
-                                if (_letterController.text.trim().isNotEmpty) {
-                                  _autoSaveLetter(lang);
+                                if (_editingLetterId != null) {
+                                  // Discard edit without saving.
+                                  setState(() {
+                                    _isWritingMode = false;
+                                    _editingLetterId = null;
+                                    _letterController.clear();
+                                  });
+                                } else {
+                                  // Auto-save before canceling if there's text
+                                  if (_letterController.text.trim().isNotEmpty) {
+                                    _autoSaveLetter(lang);
+                                  }
+                                  setState(() {
+                                    _isWritingMode = false;
+                                    _letterController.clear();
+                                  });
                                 }
-                                setState(() {
-                                  _isWritingMode = false;
-                                  _letterController.clear();
-                                });
                               },
                               child: Container(
                                 padding:
@@ -1077,11 +1189,82 @@ class _CommitmentScreenState extends State<CommitmentScreen>
                         ),
                       ),
                     ),
+                    // Edit / Delete actions
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(26, 0, 26, 20),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildLetterActionChip(
+                            lang,
+                            isDark,
+                            icon: Icons.edit_rounded,
+                            label: lang.currentLanguage == AppLanguage.arabic
+                                ? 'تعديل'
+                                : lang.currentLanguage == AppLanguage.kurdish
+                                    ? 'دەستکاری'
+                                    : 'Edit',
+                            color: const Color(0xFF0D9488),
+                            onTap: () => _startEdit(lang, letter),
+                          ),
+                          const SizedBox(width: 12),
+                          _buildLetterActionChip(
+                            lang,
+                            isDark,
+                            icon: Icons.delete_outline_rounded,
+                            label: lang.currentLanguage == AppLanguage.arabic
+                                ? 'حذف'
+                                : lang.currentLanguage == AppLanguage.kurdish
+                                    ? 'سڕینەوە'
+                                    : 'Delete',
+                            color: const Color(0xFFE53935),
+                            onTap: () => _confirmDeleteLetter(lang, letter),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  /// Small pill button used for editing / deleting a letter.
+  Widget _buildLetterActionChip(
+    LanguageService lang,
+    bool isDark, {
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        decoration: BoxDecoration(
+          color: color.withOpacity(isDark ? 0.16 : 0.10),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.45), width: 1),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: lang.getTextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ],
         ),
       ),
     );
