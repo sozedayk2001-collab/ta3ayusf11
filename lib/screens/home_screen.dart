@@ -2907,7 +2907,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 builder: (context) => const WebViewScreen(
                                   title: 'مجتمع لا أبرح',
                                     url:
-                                        'https://8erfuc-arcadawebapps8.vercel.app/',
+                                        'https://8erfuc-dkveergqr-arcadawebapps7.vercel.app/',
                                 ),
                               ),
                             ),
