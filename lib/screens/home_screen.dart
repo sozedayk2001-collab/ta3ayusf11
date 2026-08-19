@@ -3142,31 +3142,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             lang: lang,
                             isDark: isDark,
                           ),
-                          _buildCompactSectionTile(
-                            title: lang.currentLanguage == AppLanguage.kurdish
-                                ? 'ڤیدیۆ و دەنگەکان'
-                                : lang.currentLanguage == AppLanguage.arabic
-                                    ? 'فيديوهات وصوتيات'
-                                    : 'Videos & Audio',
-                            subtitle:
-                                lang.currentLanguage == AppLanguage.kurdish
-                                    ? 'وانەی بەسوود'
-                                    : lang.currentLanguage == AppLanguage.arabic
-                                        ? 'محاضرات مفيدة'
-                                        : 'Useful lectures',
-                            iconAsset: 'assets/images/icon_media.png',
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const WebViewScreen(
-                                  title: 'فيديوهات وصوتيات التعافي',
-                                  url: 'https://yusf4.lovable.app/',
-                                ),
-                              ),
-                            ),
-                            lang: lang,
-                            isDark: isDark,
-                          ),
                         ],
                       ),
 
@@ -4121,7 +4096,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       lang,
                       () async {
                         Navigator.pop(context);
-                        final url = 'https://web.telegram.org/k/#@Ta3fi_group';
+                        final url = 'https://t.me/Ta3fi_group';
                         if (kIsWeb) {
                           final uri = Uri.parse(url);
                           if (await canLaunchUrl(uri)) {
